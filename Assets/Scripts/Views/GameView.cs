@@ -10,6 +10,7 @@ public class GameView : MonoBehaviour, IView
     [SerializeField] private GameObject gamePanel;
     [SerializeField] private GameObject pausePanel;
     [SerializeField] private GameObject gameOverPanel;
+    [SerializeField] private GameObject victoryPanel;
 
     [Header("UI Elements")]
     [SerializeField] private Button startButton;
@@ -89,6 +90,9 @@ public class GameView : MonoBehaviour, IView
             case GameState.GameOver:
                 ShowGameOverPanel();
                 break;
+            case GameState.Victory:
+                ShowVictoryPanel();
+                break;
         }
     }
 
@@ -98,6 +102,7 @@ public class GameView : MonoBehaviour, IView
         SetPanelActive(gamePanel, false);
         SetPanelActive(pausePanel, false);
         SetPanelActive(gameOverPanel, false);
+        SetPanelActive(victoryPanel, false);
     }
 
     private void ShowGamePanel()
@@ -106,6 +111,7 @@ public class GameView : MonoBehaviour, IView
         SetPanelActive(gamePanel, true);
         SetPanelActive(pausePanel, false);
         SetPanelActive(gameOverPanel, false);
+        SetPanelActive(victoryPanel, false);
     }
 
     private void ShowPausePanel()
@@ -116,6 +122,11 @@ public class GameView : MonoBehaviour, IView
     private void ShowGameOverPanel()
     {
         SetPanelActive(gameOverPanel, true);
+    }
+
+    private void ShowVictoryPanel()
+    {
+        SetPanelActive(victoryPanel, true);
     }
 
     private void SetPanelActive(GameObject panel, bool active)

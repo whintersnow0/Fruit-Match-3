@@ -1,4 +1,3 @@
-using UnityEditor;
 using UnityEngine;
 
 public class ScoreController : MonoBehaviour, IController
@@ -42,7 +41,10 @@ public class ScoreController : MonoBehaviour, IController
 
     private void HandleTargetReached()
     {
-        GameController.Instance?.CompleteLevel();
+        if (GameController.Instance != null)
+        {
+            GameController.Instance.CompleteLevel();
+        }
     }
 
     public void Cleanup()

@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem.XInput;
 
 public class GameController : MonoBehaviour, IController
 {
@@ -76,6 +75,11 @@ public class GameController : MonoBehaviour, IController
         StartGame();
     }
 
+    public void CompleteLevel()
+    {
+        gameModel.CompleteLevel();
+    }
+
     private void HandleGameStateChanged(GameState newState)
     {
         switch (newState)
@@ -85,6 +89,7 @@ public class GameController : MonoBehaviour, IController
                 break;
             case GameState.Paused:
             case GameState.GameOver:
+            case GameState.Victory:
                 inputController.DisableInput();
                 break;
         }
