@@ -29,6 +29,7 @@ public enum MatchType
 {
     Horizontal,
     Vertical,
+    Complex,
     LShape,
     TShape
 }
