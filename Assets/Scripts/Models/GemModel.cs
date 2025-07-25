@@ -1,7 +1,7 @@
 using UnityEngine;
 using System;
 
-public class GemModel
+public class GemModel : IModel
 {
     private int x, y;
     private GemType type;
@@ -17,6 +17,7 @@ public class GemModel
 
     public event Action<Vector2Int> OnPositionChanged;
     public event Action<GemType> OnTypeChanged;
+    public event Action OnModelChanged;
 
     public GemModel(int x, int y, GemType type)
     {
@@ -43,6 +44,14 @@ public class GemModel
     {
         isSpecial = false;
         specialType = SpecialGemType.None;
+    }
+
+    public void Initialize()
+    {
+    }
+
+    public void Cleanup()
+    {
     }
 }
 

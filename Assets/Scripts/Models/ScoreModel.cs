@@ -45,7 +45,7 @@ public class ScoreModel : BaseModel
 
     public int Multiplier => multiplier;
     public int Combo => combo;
-    public bool IsTargetReached => currentScore >= targetScore;
+    public bool IsTargetReached => currentScore >= targetScore && targetScore > 0;
 
     public event Action<int> OnScoreChanged;
     public event Action<int> OnComboChanged;
@@ -57,6 +57,7 @@ public class ScoreModel : BaseModel
         multiplier = 1;
         combo = 0;
         bestScore = PlayerPrefs.GetInt("BestScore", 0);
+        NotifyModelChanged();
     }
 
     public void AddScore(int points)
@@ -74,6 +75,14 @@ public class ScoreModel : BaseModel
         {
             OnTargetReached?.Invoke();
         }
+    }
+
+    public void SetCombo(int newCombo)
+    {
+        combo = newCombo;
+        multiplier = 1 + (combo / 3);
+        OnComboChanged?.Invoke(combo);
+        NotifyModelChanged();
     }
 
     public void AddCombo()
@@ -96,5 +105,11 @@ public class ScoreModel : BaseModel
     {
         CurrentScore = 0;
         ResetCombo();
+    }
+
+    public float GetProgress()
+    {
+        if (targetScore <= 0) return 0f;
+        return Mathf.Clamp01((float)currentScore / targetScore);
     }
 }

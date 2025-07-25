@@ -58,27 +58,44 @@ public class InputController : MonoBehaviour, IController
 
     private void HandleTouchStart(Vector3 screenPosition)
     {
+        Debug.Log($"Touch Start: {screenPosition}");
         startTouchPosition = screenPosition;
+
         Vector3 worldPosition = mainCamera.ScreenToWorldPoint(screenPosition);
         worldPosition.z = 0;
+
+        Debug.Log($"World Position: {worldPosition}");
 
         RaycastHit2D hit = Physics2D.Raycast(worldPosition, Vector2.zero, Mathf.Infinity, gemLayerMask);
         if (hit.collider != null)
         {
+            Debug.Log($"Hit gem: {hit.collider.name}");
             selectedGem = hit.collider.GetComponent<GemView>();
             if (selectedGem != null)
             {
                 selectedGem.Select();
+                Debug.Log($"Selected gem at: {selectedGem.GridPosition}");
             }
+        }
+        else
+        {
+            Debug.Log("No gem hit!");
         }
     }
 
+
     private void HandleTouchEnd(Vector3 screenPosition)
     {
-        if (selectedGem == null) return;
+        if (selectedGem == null)
+        {
+            Debug.Log("No gem selected for swipe");
+            return;
+        }
 
         endTouchPosition = screenPosition;
         Vector3 swipeDirection = endTouchPosition - startTouchPosition;
+
+        Debug.Log($"Swipe magnitude: {swipeDirection.magnitude}, threshold: {swipeThreshold * Screen.dpi / 160f}");
 
         if (swipeDirection.magnitude >= swipeThreshold * Screen.dpi / 160f)
         {
@@ -86,7 +103,12 @@ public class InputController : MonoBehaviour, IController
             Vector2Int currentPos = selectedGem.GridPosition;
             Vector2Int targetPos = currentPos + swipeDir;
 
+            Debug.Log($"Swipe from {currentPos} to {targetPos}, direction: {swipeDir}");
             OnSwipeDetected?.Invoke(currentPos, targetPos);
+        }
+        else
+        {
+            Debug.Log("Swipe too short");
         }
 
         selectedGem.Deselect();

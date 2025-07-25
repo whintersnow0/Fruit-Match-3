@@ -1,7 +1,7 @@
 using UnityEngine;
 using System;
 
-public abstract class BaseModel : IModel
+public abstract class BaseModel : MonoBehaviour, IModel
 {
     public event Action OnModelChanged;
 

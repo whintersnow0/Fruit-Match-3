@@ -1,8 +1,9 @@
-using UnityEngine;
 using System.Collections.Generic;
 using System;
+using UnityEngine;
+using System.Collections;
 
-public class GridModel : BaseModel
+public class GridModel : MonoBehaviour
 {
     [Header("Grid Settings")]
     [SerializeField] private int width = 8;
@@ -21,8 +22,9 @@ public class GridModel : BaseModel
     public event Action<List<Match>> OnMatchesFound;
     public event Action<List<Vector2Int>> OnGemsDestroyed;
     public event Action OnGridRefilled;
+    public event Action OnModelChanged;
 
-    public override void Initialize()
+    public void Initialize()
     {
         grid = new GemModel[width, height];
         currentMatches = new List<Match>();
@@ -39,7 +41,7 @@ public class GridModel : BaseModel
                 grid[x, y] = new GemModel(x, y, gemType);
             }
         }
-        NotifyModelChanged();
+        OnModelChanged?.Invoke();
     }
 
     private GemType GetRandomGemTypeWithoutMatches(int x, int y)
@@ -56,7 +58,7 @@ public class GridModel : BaseModel
         {
             availableTypes.Remove(grid[x - 1, y].Type);
         }
-      
+
         if (y >= 2 &&
             grid[x, y - 1] != null && grid[x, y - 2] != null &&
             grid[x, y - 1].Type == grid[x, y - 2].Type)
@@ -78,20 +80,23 @@ public class GridModel : BaseModel
     {
         if (isProcessing) return false;
 
+        if (!IsValidPosition(pos1) || !IsValidPosition(pos2))
+            return false;
+
         if (!AreAdjacent(pos1, pos2)) return false;
 
         var gem1 = GetGem(pos1.x, pos1.y);
         var gem2 = GetGem(pos2.x, pos2.y);
 
         if (gem1 == null || gem2 == null) return false;
- 
+
         SwapGems(pos1, pos2);
 
         var matches = FindMatches();
         if (matches.Count > 0)
         {
             OnGemsSwapped?.Invoke(pos1, pos2);
-            ProcessMatches(matches);
+            StartCoroutine(ProcessMatchSequence(matches));
             return true;
         }
         else
@@ -99,6 +104,11 @@ public class GridModel : BaseModel
             SwapGems(pos1, pos2);
             return false;
         }
+    }
+
+    private bool IsValidPosition(Vector2Int pos)
+    {
+        return pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height;
     }
 
     private void SwapGems(Vector2Int pos1, Vector2Int pos2)
@@ -123,72 +133,34 @@ public class GridModel : BaseModel
     private List<Match> FindMatches()
     {
         var matches = new List<Match>();
-        bool[,] visited = new bool[width, height];
+        var matchedPositions = new HashSet<Vector2Int>();
 
         for (int y = 0; y < height; y++)
         {
-            for (int x = 0; x < width - 2; x++)
+            for (int x = 0; x < width; x++)
             {
-                if (visited[x, y]) continue;
+                if (matchedPositions.Contains(new Vector2Int(x, y))) continue;
 
                 var currentGem = grid[x, y];
                 if (currentGem == null) continue;
 
-                var matchPositions = new List<Vector2Int> { new Vector2Int(x, y) };
-
-                for (int i = x + 1; i < width; i++)
+                var horizontalMatch = FindHorizontalMatch(x, y, currentGem.Type);
+                if (horizontalMatch.Count >= 3)
                 {
-                    if (grid[i, y] != null && grid[i, y].Type == currentGem.Type)
+                    matches.Add(new Match(horizontalMatch, currentGem.Type, MatchType.Horizontal));
+                    foreach (var pos in horizontalMatch)
                     {
-                        matchPositions.Add(new Vector2Int(i, y));
-                    }
-                    else
-                    {
-                        break;
+                        matchedPositions.Add(pos);
                     }
                 }
 
-                if (matchPositions.Count >= 3)
+                var verticalMatch = FindVerticalMatch(x, y, currentGem.Type);
+                if (verticalMatch.Count >= 3)
                 {
-                    matches.Add(new Match(matchPositions, currentGem.Type, MatchType.Horizontal));
-                    foreach (var pos in matchPositions)
+                    matches.Add(new Match(verticalMatch, currentGem.Type, MatchType.Vertical));
+                    foreach (var pos in verticalMatch)
                     {
-                        visited[pos.x, pos.y] = true;
-                    }
-                }
-            }
-        }
-
-        visited = new bool[width, height];
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height - 2; y++)
-            {
-                if (visited[x, y]) continue;
-
-                var currentGem = grid[x, y];
-                if (currentGem == null) continue;
-
-                var matchPositions = new List<Vector2Int> { new Vector2Int(x, y) };
-
-                for (int i = y + 1; i < height; i++)
-                {
-                    if (grid[x, i] != null && grid[x, i].Type == currentGem.Type)
-                    {
-                        matchPositions.Add(new Vector2Int(x, i));
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                if (matchPositions.Count >= 3)
-                {
-                    matches.Add(new Match(matchPositions, currentGem.Type, MatchType.Vertical));
-                    foreach (var pos in matchPositions)
-                    {
-                        visited[pos.x, pos.y] = true;
+                        matchedPositions.Add(pos);
                     }
                 }
             }
@@ -197,10 +169,51 @@ public class GridModel : BaseModel
         return matches;
     }
 
-    private void ProcessMatches(List<Match> matches)
+    private List<Vector2Int> FindHorizontalMatch(int startX, int startY, GemType type)
+    {
+        var matchPositions = new List<Vector2Int>();
+
+        for (int x = startX; x < width; x++)
+        {
+            if (grid[x, startY] != null && grid[x, startY].Type == type)
+            {
+                matchPositions.Add(new Vector2Int(x, startY));
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return matchPositions;
+    }
+
+    private List<Vector2Int> FindVerticalMatch(int startX, int startY, GemType type)
+    {
+        var matchPositions = new List<Vector2Int>();
+
+        for (int y = startY; y < height; y++)
+        {
+            if (grid[startX, y] != null && grid[startX, y].Type == type)
+            {
+                matchPositions.Add(new Vector2Int(startX, y));
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return matchPositions;
+    }
+
+    private IEnumerator ProcessMatchSequence(List<Match> matches)
     {
         isProcessing = true;
         currentMatches = matches;
+
+        OnMatchesFound?.Invoke(matches);
+        yield return new WaitForSeconds(0.3f);
 
         var destroyedPositions = new List<Vector2Int>();
         foreach (var match in matches)
@@ -208,15 +221,28 @@ public class GridModel : BaseModel
             destroyedPositions.AddRange(match.Positions);
         }
 
-        OnMatchesFound?.Invoke(matches);
-        OnGemsDestroyed?.Invoke(destroyedPositions);
-
         foreach (var pos in destroyedPositions)
         {
             grid[pos.x, pos.y] = null;
         }
 
+        OnGemsDestroyed?.Invoke(destroyedPositions);
+        yield return new WaitForSeconds(0.2f);
+
         RefillGrid();
+        OnGridRefilled?.Invoke();
+        yield return new WaitForSeconds(0.7f);
+
+        var newMatches = FindMatches();
+        if (newMatches.Count > 0)
+        {
+            StartCoroutine(ProcessMatchSequence(newMatches));
+        }
+        else
+        {
+            isProcessing = false;
+            OnModelChanged?.Invoke();
+        }
     }
 
     private void RefillGrid()
@@ -224,6 +250,7 @@ public class GridModel : BaseModel
         for (int x = 0; x < width; x++)
         {
             int writeIndex = 0;
+
             for (int y = 0; y < height; y++)
             {
                 if (grid[x, y] != null)
@@ -244,19 +271,6 @@ public class GridModel : BaseModel
                     System.Enum.GetValues(typeof(GemType)).Length);
                 grid[x, y] = new GemModel(x, y, newType);
             }
-        }
-
-        OnGridRefilled?.Invoke();
-
-        var newMatches = FindMatches();
-        if (newMatches.Count > 0)
-        {
-            ProcessMatches(newMatches);
-        }
-        else
-        {
-            isProcessing = false;
-            NotifyModelChanged();
         }
     }
 }

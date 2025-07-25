@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections;
 using DG.Tweening;
 using System;
-using Unity.VisualScripting;
 
 public class GridView : MonoBehaviour, IView
 {
@@ -21,7 +20,7 @@ public class GridView : MonoBehaviour, IView
     [SerializeField] private GridModel gridModel;
 
     private GemView[,] gemViews;
-    private Dictionary<Vector2Int, GemView> gemViewDict;
+    private bool isAnimating;
 
     public event Action<Vector2Int, Vector2Int> OnGemSwapRequested;
 
@@ -30,14 +29,32 @@ public class GridView : MonoBehaviour, IView
         if (gridModel == null) return;
 
         gemViews = new GemView[gridModel.Width, gridModel.Height];
-        gemViewDict = new Dictionary<Vector2Int, GemView>();
-
         CreateInitialGems();
+        SubscribeToEvents();
+    }
 
+    private void SubscribeToEvents()
+    {
         var inputController = FindObjectOfType<InputController>();
         if (inputController != null)
         {
-            inputController.OnSwipeDetected += (pos1, pos2) => OnGemSwapRequested?.Invoke(pos1, pos2);
+            inputController.OnSwipeDetected += HandleSwipeInput;
+        }
+
+        if (gridModel != null)
+        {
+            gridModel.OnGemsSwapped += HandleValidSwap;
+            gridModel.OnMatchesFound += HandleMatchesFound;
+            gridModel.OnGemsDestroyed += HandleGemsDestroyed;
+            gridModel.OnGridRefilled += HandleGridRefilled;
+        }
+    }
+
+    private void HandleSwipeInput(Vector2Int pos1, Vector2Int pos2)
+    {
+        if (!isAnimating)
+        {
+            OnGemSwapRequested?.Invoke(pos1, pos2);
         }
     }
 
@@ -69,9 +86,7 @@ public class GridView : MonoBehaviour, IView
         }
 
         gemView.Initialize(gemModel, new Vector2Int(x, y));
-
         gemViews[x, y] = gemView;
-        gemViewDict[new Vector2Int(x, y)] = gemView;
     }
 
     private Vector3 GetWorldPosition(int x, int y)
@@ -83,97 +98,91 @@ public class GridView : MonoBehaviour, IView
         );
     }
 
-    public void UpdateView()
+    private void HandleValidSwap(Vector2Int pos1, Vector2Int pos2)
     {
-        for (int x = 0; x < gridModel.Width; x++)
-        {
-            for (int y = 0; y < gridModel.Height; y++)
-            {
-                var gemModel = gridModel.GetGem(x, y);
-                var gemView = gemViews[x, y];
-
-                if (gemModel != null && gemView == null)
-                {
-                    CreateGemView(gemModel, x, y);
-                }
-                else if (gemModel == null && gemView != null)
-                {
-                    RemoveGemView(x, y);
-                }
-                else if (gemModel != null && gemView != null)
-                {                 
-                    gemView.UpdateModel(gemModel);
-                }
-            }
-        }
+        StartCoroutine(PlayValidSwapSequence(pos1, pos2));
     }
 
-    private void RemoveGemView(int x, int y)
+    private IEnumerator PlayValidSwapSequence(Vector2Int pos1, Vector2Int pos2)
     {
-        var gemView = gemViews[x, y];
-        if (gemView != null)
-        {
-            gemViewDict.Remove(new Vector2Int(x, y));
-            gemViews[x, y] = null;
-            Destroy(gemView.gameObject);
-        }
-    }
+        isAnimating = true;
 
-    public void PlaySwapAnimation(Vector2Int pos1, Vector2Int pos2)
-    {
         var gem1 = gemViews[pos1.x, pos1.y];
         var gem2 = gemViews[pos2.x, pos2.y];
 
         if (gem1 != null && gem2 != null)
         {
-            Vector3 pos1World = GetWorldPosition(pos2.x, pos2.y);
-            Vector3 pos2World = GetWorldPosition(pos1.x, pos1.y);
+            Vector3 targetPos1 = GetWorldPosition(pos2.x, pos2.y);
+            Vector3 targetPos2 = GetWorldPosition(pos1.x, pos1.y);
 
-            gem1.transform.DOMove(pos1World, swapDuration).SetEase(Ease.OutCubic);
-            gem2.transform.DOMove(pos2World, swapDuration).SetEase(Ease.OutCubic);
+            gem1.transform.DOMove(targetPos1, swapDuration).SetEase(Ease.OutCubic);
+            gem2.transform.DOMove(targetPos2, swapDuration).SetEase(Ease.OutCubic);
 
-            StartCoroutine(UpdateGemsArrayAfterSwap(pos1, pos2));
+            gemViews[pos1.x, pos1.y] = gem2;
+            gemViews[pos2.x, pos2.y] = gem1;
+
+            gem1.UpdateGridPosition(pos2);
+            gem2.UpdateGridPosition(pos1);
         }
-    }
 
-    private IEnumerator UpdateGemsArrayAfterSwap(Vector2Int pos1, Vector2Int pos2)
-    {
         yield return new WaitForSeconds(swapDuration);
-
-        var temp = gemViews[pos1.x, pos1.y];
-        gemViews[pos1.x, pos1.y] = gemViews[pos2.x, pos2.y];
-        gemViews[pos2.x, pos2.y] = temp;
-
-        if (gemViews[pos1.x, pos1.y] != null)
-            gemViews[pos1.x, pos1.y].UpdateGridPosition(pos1);
-        if (gemViews[pos2.x, pos2.y] != null)
-            gemViews[pos2.x, pos2.y].UpdateGridPosition(pos2);
     }
 
     public void PlayInvalidSwapAnimation(Vector2Int pos1, Vector2Int pos2)
     {
+        if (isAnimating) return;
+
+        StartCoroutine(PlayInvalidSwapSequence(pos1, pos2));
+    }
+
+    private IEnumerator PlayInvalidSwapSequence(Vector2Int pos1, Vector2Int pos2)
+    {
+        isAnimating = true;
+
+        if (!IsValidPosition(pos1) || !IsValidPosition(pos2))
+        {
+            isAnimating = false;
+            yield break;
+        }
+
         var gem1 = gemViews[pos1.x, pos1.y];
         var gem2 = gemViews[pos2.x, pos2.y];
 
-        if (gem1 != null && gem2 != null)
+        if (gem1 == null || gem2 == null)
         {
-            Vector3 originalPos1 = gem1.transform.position;
-            Vector3 originalPos2 = gem2.transform.position;
-            Vector3 targetPos1 = GetWorldPosition(pos2.x, pos2.y);
-            Vector3 targetPos2 = GetWorldPosition(pos1.x, pos1.y);
-
-            DG.Tweening.Sequence sequence = DOTween.Sequence();
-            sequence.Append(gem1.transform.DOMove(targetPos1, swapDuration * 0.5f));
-            sequence.Join(gem2.transform.DOMove(targetPos2, swapDuration * 0.5f));
-            sequence.Append(gem1.transform.DOMove(originalPos1, swapDuration * 0.5f));
-            sequence.Join(gem2.transform.DOMove(originalPos2, swapDuration * 0.5f));
-
-            gem1.transform.DOShakePosition(0.3f, 0.1f, 10, 90, false, true);
-            gem2.transform.DOShakePosition(0.3f, 0.1f, 10, 90, false, true);
+            isAnimating = false;
+            yield break;
         }
+
+        Vector3 posA = gem1.transform.position;
+        Vector3 posB = gem2.transform.position;
+        float halfDuration = swapDuration * 0.5f;
+
+        gem1.transform.DOMove(posB, halfDuration).SetEase(Ease.InOutQuad);
+        gem2.transform.DOMove(posA, halfDuration).SetEase(Ease.InOutQuad);
+
+        yield return new WaitForSeconds(halfDuration);
+
+        gem1.transform.DOMove(posA, halfDuration).SetEase(Ease.InOutQuad);
+        gem2.transform.DOMove(posB, halfDuration).SetEase(Ease.InOutQuad);
+
+        yield return new WaitForSeconds(halfDuration);
+
+        isAnimating = false;
     }
 
-    public void HighlightMatches(List<Match> matches)
+    private bool IsValidPosition(Vector2Int pos)
+    {
+        return pos.x >= 0 && pos.x < gemViews.GetLength(0) &&
+               pos.y >= 0 && pos.y < gemViews.GetLength(1);
+    }
+
+    private void HandleMatchesFound(List<Match> matches)
+    {
+        StartCoroutine(HandleMatchesSequence(matches));
+    }
+
+    private IEnumerator HandleMatchesSequence(List<Match> matches)
     {
         foreach (var match in matches)
         {
@@ -186,55 +195,57 @@ public class GridView : MonoBehaviour, IView
                 }
             }
         }
+
+        yield return new WaitForSeconds(0.3f);
     }
 
-    public void PlayDestroyAnimation(List<Vector2Int> positions)
+    private void HandleGemsDestroyed(List<Vector2Int> positions)
+    {
+        StartCoroutine(HandleDestroySequence(positions));
+    }
+
+    private IEnumerator HandleDestroySequence(List<Vector2Int> positions)
     {
         foreach (var pos in positions)
         {
-            var gemView = gemViews[pos.x, pos.y];
-            if (gemView != null)
+            if (IsValidPosition(pos))
             {
-                gemView.PlayDestroyAnimation(() => {
-                    RemoveGemView(pos.x, pos.y);
-                });
-            }
-        }
-    }
-
-    public void PlayRefillAnimation()
-    {
-        StartCoroutine(RefillAnimationCoroutine());
-    }
-
-    private IEnumerator RefillAnimationCoroutine()
-    {
-        yield return new WaitForSeconds(destroyDuration);
-
-        for (int x = 0; x < gridModel.Width; x++)
-        {
-            for (int y = 0; y < gridModel.Height; y++)
-            {
-                var gemModel = gridModel.GetGem(x, y);
-                var gemView = gemViews[x, y];
-
-                if (gemModel != null && gemView != null)
+                var gemView = gemViews[pos.x, pos.y];
+                if (gemView != null)
                 {
-                    Vector3 targetPosition = GetWorldPosition(x, y);
-                    if (Vector3.Distance(gemView.transform.position, targetPosition) > 0.1f)
-                    {
-                        gemView.transform.DOMove(targetPosition, fallDuration).SetEase(Ease.InBounce);
-                    }
+                    gemView.PlayDestroyAnimation(() => {
+                        Destroy(gemView.gameObject);
+                    });
+                    gemViews[pos.x, pos.y] = null;
                 }
             }
         }
 
+        yield return new WaitForSeconds(destroyDuration);
+    }
+
+    private void HandleGridRefilled()
+    {
+        StartCoroutine(HandleRefillSequence());
+    }
+
+    private IEnumerator HandleRefillSequence()
+    {
         for (int x = 0; x < gridModel.Width; x++)
         {
             for (int y = 0; y < gridModel.Height; y++)
             {
                 var gemModel = gridModel.GetGem(x, y);
-                if (gemModel != null && gemViews[x, y] == null)
+                var existingView = gemViews[x, y];
+
+                if (gemModel != null && existingView != null)
+                {
+                    Vector3 targetPosition = GetWorldPosition(x, y);
+                    existingView.transform.DOMove(targetPosition, fallDuration).SetEase(Ease.InBounce);
+                    existingView.UpdateGridPosition(new Vector2Int(x, y));
+                    existingView.UpdateModel(gemModel);
+                }
+                else if (gemModel != null && existingView == null)
                 {
                     Vector3 startPosition = GetWorldPosition(x, gridModel.Height + 2);
                     Vector3 targetPosition = GetWorldPosition(x, y);
@@ -250,9 +261,42 @@ public class GridView : MonoBehaviour, IView
 
                     gemView.Initialize(gemModel, new Vector2Int(x, y));
                     gemViews[x, y] = gemView;
-                    gemViewDict[new Vector2Int(x, y)] = gemView;
 
-                    gemView.transform.DOMove(targetPosition, fallDuration).SetEase(Ease.InBounce).SetDelay(UnityEngine.Random.Range(0f, 0.2f));
+                    float delay = UnityEngine.Random.Range(0f, 0.2f);
+                    gemView.transform.DOMove(targetPosition, fallDuration)
+                        .SetEase(Ease.InBounce)
+                        .SetDelay(delay);
+                }
+            }
+        }
+
+        yield return new WaitForSeconds(fallDuration + 0.2f);
+        isAnimating = false;
+    }
+
+    public void UpdateView()
+    {
+        if (isAnimating) return;
+
+        for (int x = 0; x < gridModel.Width; x++)
+        {
+            for (int y = 0; y < gridModel.Height; y++)
+            {
+                var gemModel = gridModel.GetGem(x, y);
+                var gemView = gemViews[x, y];
+
+                if (gemModel != null && gemView == null)
+                {
+                    CreateGemView(gemModel, x, y);
+                }
+                else if (gemModel == null && gemView != null)
+                {
+                    Destroy(gemView.gameObject);
+                    gemViews[x, y] = null;
+                }
+                else if (gemModel != null && gemView != null)
+                {
+                    gemView.UpdateModel(gemModel);
                 }
             }
         }
@@ -261,17 +305,32 @@ public class GridView : MonoBehaviour, IView
     public void Cleanup()
     {
         DOTween.KillAll();
+        isAnimating = false;
 
-        if (gemViewDict != null)
+        if (gemViews != null)
         {
-            foreach (var kvp in gemViewDict)
+            for (int x = 0; x < gemViews.GetLength(0); x++)
             {
-                if (kvp.Value != null)
+                for (int y = 0; y < gemViews.GetLength(1); y++)
                 {
-                    Destroy(kvp.Value.gameObject);
+                    if (gemViews[x, y] != null)
+                    {
+                        Destroy(gemViews[x, y].gameObject);
+                        gemViews[x, y] = null;
+                    }
                 }
             }
-            gemViewDict.Clear();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (gridModel != null)
+        {
+            gridModel.OnGemsSwapped -= HandleValidSwap;
+            gridModel.OnMatchesFound -= HandleMatchesFound;
+            gridModel.OnGemsDestroyed -= HandleGemsDestroyed;
+            gridModel.OnGridRefilled -= HandleGridRefilled;
         }
     }
 }

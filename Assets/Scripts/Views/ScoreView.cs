@@ -47,6 +47,38 @@ public class ScoreView : MonoBehaviour, IView
         UpdateProgressBar();
     }
 
+    public void UpdateScore(int newScore)
+    {
+        AnimateScoreChange(newScore);
+    }
+
+    public void UpdateCombo(int newCombo)
+    {
+        AnimateComboChange(newCombo);
+    }
+
+    public void UpdateTarget(int target)
+    {
+        if (targetScoreText != null)
+        {
+            targetScoreText.text = $"Target: {target:N0}";
+        }
+        UpdateProgressBar();
+    }
+
+    public void UpdateProgress(float progress)
+    {
+        if (progressSlider != null)
+        {
+            progressSlider.DOValue(progress, 0.3f).SetEase(Ease.OutCubic);
+        }
+    }
+
+    public void PlayTargetReachedAnimation()
+    {
+        HandleTargetReached();
+    }
+
     private void UpdateScoreDisplay()
     {
         if (currentScoreText != null)

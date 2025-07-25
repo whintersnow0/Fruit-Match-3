@@ -17,14 +17,13 @@ public class GemView : MonoBehaviour, IView
     private GemModel gemModel;
     private Vector2Int gridPosition;
     private bool isSelected = false;
-
     public Vector2Int GridPosition => gridPosition;
     public GemModel Model => gemModel;
 
     public void Initialize()
     {
         if (spriteRenderer == null)
-            spriteRenderer = GetComponent<SpriteRenderer>();
+            spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
         if (selectionHighlight != null)
             selectionHighlight.SetActive(false);
@@ -59,7 +58,7 @@ public class GemView : MonoBehaviour, IView
     {
         if (spriteRenderer != null)
         {
-            Debug.LogError("spriteRenderer is Null.");
+           
         }
     }
 
