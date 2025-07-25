@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: efd85b2d1201e2a44b68ba620d2ddf84, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: 
-  gridWidth: 8
-  gridHeight: 8
+  gridWidth: 6
+  gridHeight: 6
   gemSpacing: 1
   levelTimeLimit: 120
   baseScore: 100
