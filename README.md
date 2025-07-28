@@ -1,4 +1,4 @@
-# 💎 Match-3 Game (Unity, MVC Architecture)
+# Match-3 Game (Unity, MVC Architecture)
 
 PROJECT IN MVP STATE, ONLY CORE
 
