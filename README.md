@@ -20,6 +20,5 @@ This is a classic Match-3 puzzle game developed in **Unity** using the **MVC** a
 - **Unity** 6000.04 or higher  
 - **C#**, using coroutines and delegates  
 - **No dependencies** on Unity’s physics or Tilemap systems  
-
-
+- **Modular Architecture** 
 
